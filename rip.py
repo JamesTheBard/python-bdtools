@@ -5,7 +5,7 @@ import operator
 import shutil
 from mako.template import Template
 
-class Eac3toRip:
+class BDRip:
 
     template = {}
     version = "0.99.1beta"
@@ -13,12 +13,42 @@ class Eac3toRip:
         "tuning": [ 'default', 'film', 'animation', 'grain', 'psnr', 'ssim', 'fast_decode' ],
     }
     encoder_crf = 20
+    directory = "C:\\Users\\JamesTheBard\\Code\\python-bdtools\\templates"
+    avs_template_defs = {
+        "h264": "h264.template",
+        "vc-1": "vc-1.template",
+    }
 
     def __init__(self, drive_letter):
         self.path_to_dvd = "%s:\BDMV\STREAM" % drive_letter
         self.drive_letter = drive_letter
         self.current_dir = os.getcwd()
         self.encoder_tuning = self.encoder_settings['tuning'][0]
+        for k, v in self.avs_template_defs.items():
+            self.avs_template_defs[k] = os.path.join( self.directory, v)
+
+    def createAvsFromTemplate(self, template_type, save_as, grf_file, crop_top=0, crop_bottom=0):
+        if template_type not in self.avs_template_defs:
+            print "BDRip: There is no default Avisynth script configured for that template type."
+            sys.exit(1)
+        self.avs_template = self.avs_template_defs[template_type]
+        print "BDRip: Avisynth set to use the default \"%s\" template located in: %s" % (template_type, self.avs_template)
+        self.createAvsFile( save_as, grf_file, crop_top, crop_bottom )
+
+    def createAvsFile(self, save_as, grf_file, crop_top=0, crop_bottom=0):
+        current_path = os.path.join(os.getcwd(),save_as)
+        fullpath_grf = os.path.join(os.getcwd(),grf_file)
+        print "BDRip: Creating Avisynth file: %s" % current_path
+        avs_template = self.avs_template
+        template = Template(filename=avs_template)
+        fd = open(save_as, "w")
+        fd.write(template.render(
+            directory=fullpath_grf,
+            crop_top=crop_top,
+            crop_bottom=crop_bottom,
+        ))
+        fd.close()
+        
 
     def ripByRange(self, begin, end, starting_episode):
         m2ts = range(begin, end + 1)
@@ -29,7 +59,7 @@ class Eac3toRip:
         self.displayHeader(m2ts_array, starting_episode)
         for i in range(len(m2ts_array)):
             new_directory = os.path.join(self.current_dir, "Episode %02i" % (starting_episode + i))
-            print "PyRip: Making new directory: %s" % new_directory
+            print "BDRip: Making new directory: %s" % new_directory
             os.mkdir(new_directory)
             os.chdir(new_directory)
             self.ripM2ts(m2ts_array[i])
@@ -76,7 +106,7 @@ class Eac3toRip:
         command = "eac3to %s" % mpls
         for k, v in sorted_template:
             command += "%s:%s " % (k, v)
-        print "PyRip: '%s'" % command.strip()
+        print "BDRip: '%s'" % command.strip()
         os.system(command)
 
     def runDgAvcIndex(self, episodes):
@@ -100,15 +130,6 @@ class Eac3toRip:
             os.chdir(full_path)
             self.createAvsFile("video.avs", grf_file)
 
-    def createAvsFile(self, save_as, grf_file):
-        current_path = os.path.join(os.getcwd(),save_as)
-        fullpath_grf = os.path.join(os.getcwd(),grf_file)
-        print "Creating: %s" % current_path
-        avs_template = self.avs_template
-        template = Template(filename=avs_template)
-        fd = open(save_as, "w")
-        fd.write(template.render(directory=fullpath_grf))
-        fd.close()
 
     def muxMkvFile(self, 
             save_as="video.mkv", 
@@ -117,7 +138,10 @@ class Eac3toRip:
             chapter_file="chapters.txt", 
             default_lang="eng",
             cache_enabled=False, cache_drive_letter="H"):
-        save_as = os.path.join(self.current_path)
+        save_as = os.path.join(self.current_dir, save_as)
+        video_file = os.path.join(self.current_dir, video_file)
+        audio_file = os.path.join(self.current_dir, audio_file)
+        chapter_file = os.path.join(self.current_dir, chapter_file)
         if cache_enabled:
             files = {
                 video_file: video_file_cache,
@@ -134,12 +158,14 @@ class Eac3toRip:
             video_file = video_file_cache
             audio_file = audio_file_cache
             chapter_file = chapter_file_cache
-        command_template = "C:\Program Files (x86)\MKVToolNix\mkvmerge.exe " \
+        command_template = "mkvmerge.exe " \
             "-o \"%s\" " \
-            "--language 0:eng \"--track-name 0:%s\" --forced-track 0:no -d 0 -A -S -T --no-global-tags --no-chapters (%s) " \
-            "--language 0:eng \"--track-name 0:%s\" --forced-track            0:no -a 0 -D -S -T --no-global-tags --no-chapters (%s) " \
-            "--track-order 0:0,1:0 --chapter-language eng --chapters %s"
-        os.system(command_template % (save_as, video_title, video_file, audio_title, audio_file, chapters_file))
+            "--language 0:eng --track-name \"0:%s\" --forced-track 0:no -d 0 -A -S -T --no-global-tags --no-chapters \"(\" \"%s\" \")\" " \
+            "--language 0:eng --track-name \"0:%s\" --forced-track 0:no -a 0 -D -S -T --no-global-tags --no-chapters \"(\" \"%s\" \")\" " \
+            "--track-order 0:0,1:0 --chapter-language eng --chapters \"%s\""
+        full_command = command_template % (save_as, video_title, video_file, audio_title, audio_file, chapter_file)
+        print "BDRip: Muxing video with: %s" % full_command
+        os.system(command_template % (save_as, video_title, video_file, audio_title, audio_file, chapter_file))
 
     def encodeVideo(self, avs_file="video.avs", output_file="video.mp4"):
         if self.encoder_tuning != 'default':
@@ -173,7 +199,7 @@ class Eac3toRip:
             self.encoder_crf = crf
 
 if __name__ == "__main__":
-    rip = Eac3toRip("D")
+    rip = BDRip("D")
     rip.ripByArray(m2ts_array=m2ts_files, starting_episode=16)
     rip.runDgAvcIndex(range(16,21))
     rip.avs_template = "E:\\Rips\\Grimm\\Template\\dgavcindex.avisynth.template"

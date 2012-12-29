@@ -1,0 +1,9 @@
+# Compiled Python Stuff #
+#########################
+*.pyc
+*.pyo
+
+# Vim Related Stuff #
+#####################
+*~
+*.py.swp
