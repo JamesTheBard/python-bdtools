@@ -1,0 +1,2 @@
+DirectShowSource("${directory}", audio=false, video=true)
+Crop(0, ${crop_top}, 0, ${crop_bottom})
