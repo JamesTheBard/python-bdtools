@@ -1,0 +1,3 @@
+LoadPlugin("C:\Program Files (x86)\MeGUI\tools\dgindex\DGDecode.dll")
+mpeg2source("${directory}")
+Crop(0, ${crop_top}, 0, ${crop_bottom})

@@ -1,4 +1,4 @@
-# vim:ts=4:et:nocp
+# vim:ts=4:sts=4:sw=4:et:nocp
 import os
 import sys
 import operator
@@ -17,6 +17,7 @@ class BDRip:
     avs_template_defs = {
         "h264": "h264.template",
         "vc-1": "vc-1.template",
+        "mpeg2": "mpeg2.template",
     }
 
     def __init__(self, drive_letter):
@@ -122,6 +123,11 @@ class BDRip:
     def dgAvcIndexCommand(self, input_file, output_file):
         command = "DGAVCIndex.exe -i \"%s\" -o \"%s\" -h" % (input_file, output_file)
         print "DGAVCIndex: %s" % command
+        os.system(command)
+
+    def dgIndexCommand(self, input_file, output_file):
+        command = "DGIndex.exe -i \"%s\" -o \"%s\" -hide -exit" % (input_file, output_file)
+        print "DGIndex: %s" % command
         os.system(command)
 
     def createAvsFileFromEpisodes(self, episodes, grf_file="video.grf"):
