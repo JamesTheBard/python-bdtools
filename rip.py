@@ -7,16 +7,19 @@ from mako.template import Template
 from error import *
 
 class BDRip:
-
+    '''A class dedicated to gluing all of the MeGUI tools into command-line
+    goodness.
+    '''
     version = "0.99.1beta"
 
     # Encoder defaults
     # The first entry in the 'tuning' list is considered the default.
-    encoder_settings = 'default', 'film', 'animation', 'grain', 'psnr', 'ssim', 'fast_decode'
+    encoder_settings = [ 'default', 'film', 'animation', 'grain', 'psnr', 
+                         'ssim', 'fast_decode' ]
     encoder_crf = 20
 
     # Template directory
-    directory = "C:\\Users\\JamesTheBard\\Code\\python-bdtools\\templates"
+    directory = os.path.normpath("C:/Users/JamesTheBard/Code/python-bdtools/templates")
     template = {}
 
     # Template defaults and filetypes
@@ -29,6 +32,7 @@ class BDRip:
     def __init__(self, drive_letter, verbose=False):
         self.is_verbose = verbose
         self.path_to_dvd = "%s:\BDMV\STREAM" % drive_letter
+        self.verbosePrint( "Setting drive path to '%s'." % self.path_to_dvd )
         self.drive_letter = drive_letter
         self.current_dir = os.getcwd()
         self.encoder_tuning = self.encoder_settings[0]
@@ -48,23 +52,31 @@ class BDRip:
         '''Create an Avisynth file based on the keyword arguments provided.
 
         Args:
-            source_type: the source input type for the Avisynth script (i.e. h264)
-            source_file: the source input file for the Avisynth script (i.e. video.h264)
+            source_type: the source input type for the Avisynth script (i.e. 
+                h264)
+            source_file: the source input file for the Avisynth script (i.e. 
+                video.h264)
             avisynth_template: the predefined template for the Avisynth file
             avisynth_file: the Avisynth script filename to save as
-            crop_top: crops the top of the source (via Avisynth) by that many pixels
-            crop_bottom: crops the bottom of the source (via Avisynth) by that many pixels
+            crop_top: crops the top of the source (via Avisynth) by that many 
+                pixels
+            crop_bottom: crops the bottom of the source (via Avisynth) by that 
+                many pixels
         Raises:
             SourceNotDefinedError: if source_type is not defined
-            SourceNotFoundError: if source_type is a type that is not defined via template
+            SourceNotFoundError: if source_type is a type that is not defined 
+                via template
         '''
 
         # Ensure that there is a 'source_type' that exists with a template.
         if "source_type" not in kwargs.keys():
-            raise SourceNotDefinedError( "The keyword argument 'source_type' is not defined." )
+            raise SourceNotDefinedError( "The keyword argument 'source_type' "
+                                         "is not defined." )
         if kwargs["source_type"] not in self.avs_template_defs:
             values = ", ".join(self.avs_template_defs.keys())
-            raise SourceNotFoundError( "The keyword argument 'source_type' is not valid.  Currently defined templates are: %s." % values ) 
+            raise SourceNotFoundError( 
+                    "The keyword argument 'source_type' is not valid.  "
+                    "Currently defined templates are: %s." % values ) 
 
         # Set the default values based on what the 'source_type' is.
         defaults = {
@@ -81,7 +93,8 @@ class BDRip:
 
         # Set the module Avisynth template and create the Avisynth file
         self.avs_template = defaults["avisynth_template"]
-        self.verbosePrint( 'Avisynth set to use the "%s" source template.' % source_type )
+        self.verbosePrint( 
+                'Avisynth set to use the "%s" source template.' % source_type )
         self._createAvsFile(
                 defaults["avisynth_file"],
                 defaults["source_file"], 
@@ -89,7 +102,8 @@ class BDRip:
                 defaults["crop_bottom"], )
 
     def _createAvsFile(self, save_as, grf_file, crop_top=0, crop_bottom=0):
-        '''Creates an Avisynth file based on the template defined as self.avs_template.
+        '''Creates an Avisynth file based on the template defined as 
+        self.avs_template.
 
         Args:
             save_as: the name of the Avisynth file to save to
@@ -97,8 +111,8 @@ class BDRip:
             crop_top: crop the video from the top that many pixels
             crop_bottom: crop the video from the bottom that many pixels
         '''
-        current_path = os.path.join(os.getcwd(),save_as)
-        fullpath_grf = os.path.join(os.getcwd(),grf_file)
+        current_path = os.path.join(os.getcwd(), save_as)
+        fullpath_grf = os.path.join(os.getcwd(), grf_file)
         self.verbosePrint( 'Creating Avisynth file: %s' % current_path )
         avs_template = self.avs_template
         template = Template(filename=avs_template)
@@ -110,48 +124,53 @@ class BDRip:
         ))
         fd.close()
 
-    # Rip television episodes using their M2TS files.  This assumes that each episode has
-    # a consecutive M2TS file.  Each M2TS corresponds to a specific television episode
-    # that also consecutive.  For example, if the series "My TV Show" had four episodes
-    # on the BluRay disc where the tenth episode was contained in "00001.m2ts", the 11th
-    # in "00002.m2ts", the 12th in "00003.m2ts", and the 13th in "00004.m2ts", you could
-    # use the ripByRange command to automatically rip them from the BluRay disc with the
-    # following command:
-    #
-    # ripByRange( 1, 4, 11 )
-    #======================================================================================
-    # ripByRange(
-    #     begin            -> The first M2TS file in the series
-    #     end              -> The last M2TS file in the series
-    #     starting_episode -> The first episode number on the BluRay
     def ripByRange(self, begin, end, starting_episode):
+        '''Rips a range of M2TS files consecutively and associates them with
+        a consecutive range of television season episodes.
+
+        Args:
+            begin: the first M2TS number (i.e. 00080.m2ts would be 80)
+            end: the last M2TS number
+            starting_episode: the episode number associated with the first
+                M2TS file
+        '''
         m2ts = range(begin, end + 1)
         self.ripByArray(m2ts_array=m2ts, starting_episode=starting_episode)
 
-    # Rip television episodes using an array of M2TS files.  It is very similar to the
-    # ripByRange command, but instead of a start and end M2TS number, it accepts an array
-    # of numbers.
-    #======================================================================================
-    # ripByArray(
-    #     m2ts_array       -> An array of integers that represent the M2TS files
-    #     starting_episode -> The first episode number on the BluRay
-    #--------------------------------------------------------------------------------------
     def ripByArray(self, m2ts_array, starting_episode):
-        number_of_episodes = len(m2ts_array)
-        self.displayHeader(m2ts_array, starting_episode)
-        for i in range(len(m2ts_array)):
-            new_directory = os.path.join(self.current_dir, "Episode %02i" % (starting_episode + i))
+        '''Rips an ordered list of M2TS files that are in episode order.
+
+        Args:
+            m2ts_list: a list of M2TS files to be ripped (in order)
+            starting_episode: the first television episode of the list
+        '''
+        number_of_episodes = len(m2ts_list)
+        self._displayHeader(m2ts_list, starting_episode)
+        for i in range(len(m2ts_list)):
+            new_directory = os.path.join(
+                    self.current_dir, 
+                    "Episode %02i" % (starting_episode + i))
             print "BDRip: Making new directory: %s" % new_directory
             os.mkdir(new_directory)
             os.chdir(new_directory)
-            self.ripM2ts(m2ts_array[i])
+            self.ripM2ts(m2ts_list[i])
 
-    def sortTemplate(self):
-            return sorted(self.template.iteritems(), key=operator.itemgetter(0))
+    def _sortTemplate(self):
+        '''Sort a the self.template dictionary based on the key.'''
+        return sorted(self.template.iteritems(), 
+                      key=operator.itemgetter(0))
 
-    def displayHeader(self, m2ts_array, starting_episode):
+    def _displayHeader(self, m2ts_array, starting_episode):
+        '''Displays the m2ts to television episode information relationship.
+
+        Args:
+            m2ts_list: a list of M2TS files to be ripped (in order)
+            starting_episode: the first television episode of the list
+        '''
+        if not self.is_verbose:
+            return
         number_of_episodes = len(m2ts_array)
-        sorted_template = self.sortTemplate()
+        sorted_template = self._sortTemplate()
         header = [ 
             "",
             "PyRip %s Template" % self.version,
@@ -167,11 +186,13 @@ class BDRip:
             print line
 
     def ripM2ts(self, m2ts):
-        sorted_template = self.sortTemplate()
+        sorted_template = self._sortTemplate()
         m2ts_file = "%05i.m2ts" % m2ts
         filename = os.path.join( self.path_to_dvd, m2ts_file )
         if not os.path.isfile( filename ):
-            raise FileNotFoundError( 'The M2TS file "%s" does not exist or is unavailable.' % filename )
+            raise FileNotFoundError( 
+                'The M2TS file "%s" does not exist or is unavailable.' 
+                % filename )
         command = "eac3to %s " % (os.path.join(self.path_to_dvd, m2ts_file))
         for k, v in sorted_template:
             command += "%s:%s " % (k, v)
@@ -179,7 +200,7 @@ class BDRip:
         os.system(command)
 
     def ripMpls(self, mpls):
-        sorted_template = self.sortTemplate()
+        sorted_template = self._sortTemplate()
         mpls = "%s: %i) " % (self.drive_letter, mpls)
         command = "eac3to %s" % mpls
         for k, v in sorted_template:
@@ -195,15 +216,19 @@ class BDRip:
             input_file = "video.h264"
             output_file = "video.dga"
             print "Input file: %s\nOutput file: %s" % (input_file, output_file)
-            self.dgAvcIndexCommand(input_file=input_file, output_file=output_file)
+            self.dgAvcIndexCommand(
+                    input_file=input_file, 
+                    output_file=output_file)
 
     def dgAvcIndexCommand(self, input_file, output_file):
-        command = "DGAVCIndex.exe -i \"%s\" -o \"%s\" -h" % (input_file, output_file)
+        command = ( 'DGAVCIndex.exe -i "%s" -o "%s" -h' %
+                  (input_file, output_file))
         self.verbosePrint( "DGAVCIndex is running: %s" % command )
         os.system(command)
 
     def dgIndexCommand(self, input_file, output_file):
-        command = "DGIndex.exe -i \"%s\" -o \"%s\" -hide -exit" % (input_file, output_file)
+        command = "DGIndex.exe -i \"%s\" -o \"%s\" -hide -exit" % (
+                input_file, output_file)
         self.verbosePrint( "DGIndex is running: %s" % command )
         os.system(command)
 
@@ -212,7 +237,6 @@ class BDRip:
             full_path = os.path.join(self.current_dir, "Episode %02i" % episode)
             os.chdir(full_path)
             self.createAvsFile("video.avs", grf_file)
-
 
     def muxMkvFile(self, 
             save_as="video.mkv", 
@@ -232,23 +256,43 @@ class BDRip:
                 chapter_file: chapter_file_cache,
             }
             basepath = "%s:\\" % cache_drive_letter
-            video_file_cache   = os.path.join(basepath, os.path.split(video_file)[1])
-            audio_file_cache   = os.path.join(basepath, os.path.split(audio_file)[1])
-            chapter_file_cache = os.path.join(basepath, os.path.splig(chapter_file)[1])
+            video_file_cache   = os.path.join(
+                    basepath, 
+                    os.path.split(video_file)[1])
+            audio_file_cache   = os.path.join(
+                    basepath, 
+                    os.path.split(audio_file)[1])
+            chapter_file_cache = os.path.join(
+                    basepath, 
+                    os.path.splig(chapter_file)[1])
             for src, dest in files.items():
                 print "Caching '%s' in '%s'..." % (src, dest)
                 shutil.copyfile(src, dest)
             video_file = video_file_cache
             audio_file = audio_file_cache
             chapter_file = chapter_file_cache
-        command_template = "mkvmerge.exe " \
-            "-o \"%s\" " \
-            "--language 0:eng --track-name \"0:%s\" --forced-track 0:no -d 0 -A -S -T --no-global-tags --no-chapters \"(\" \"%s\" \")\" " \
-            "--language 0:eng --track-name \"0:%s\" --forced-track 0:no -a 0 -D -S -T --no-global-tags --no-chapters \"(\" \"%s\" \")\" " \
-            "--track-order 0:0,1:0 --chapter-language eng --chapters \"%s\""
-        full_command = command_template % (save_as, video_title, video_file, audio_title, audio_file, chapter_file)
-        print "BDRip: Muxing video with: %s" % full_command
-        os.system(command_template % (save_as, video_title, video_file, audio_title, audio_file, chapter_file))
+        command_template = ( 'mkvmerge.exe '
+            '-o "%s" '
+            '--language 0:eng --track-name "0:%s" --forced-track 0:no '
+            '-d 0 -A -S -T --no-global-tags --no-chapters "(" "%s" ")" '
+            '--language 0:eng --track-name "0:%s" --forced-track 0:no '
+            '-a 0 -D -S -T --no-global-tags --no-chapters "(" "%s" ")" '
+            '--track-order 0:0,1:0 --chapter-language eng --chapters "%s"' )
+        full_command = command_template % (
+            save_as, 
+            video_title, 
+            video_file, 
+            audio_title, 
+            audio_file, 
+            chapter_file)
+        self.verbosePrint( "Muxing video with: %s" % full_command )
+        os.system(command_template % (
+            save_as, 
+            video_title, 
+            video_file, 
+            audio_title, 
+            audio_file, 
+            chapter_file))
 
     def encodeVideo(self, avs_file="video.avs", output_file="video.mp4"):
         if self.encoder_tuning != 'default':
@@ -256,11 +300,19 @@ class BDRip:
         else:
             additional_command = ""
         command = """""C:\\Program Files (x86)\\MeGui\\tools\\x264\\x264.exe" %s --crf %2.1f --keyint 240 --sar 1:1 --output "%s" "%s\""""
-        command = command % (additional_command, self.encoder_crf, output_file, avs_file)
+        command = command % (
+            additional_command, 
+            self.encoder_crf, 
+            output_file, 
+            avs_file)
         self.verbosePrint( "Encoding video: %s" % command )
         os.system(command)
 
-    def encodeEpisodesFromRange(self, start_episode, end_episode, avs_file, output_file):
+    def encodeEpisodesFromRange(self, 
+                                start_episode, 
+                                end_episode, 
+                                avs_file, 
+                                output_file):
         for episode in range(start_episode, end_episode + 1):
             base = os.path.join( self.current_dir, "Episode %02i" % episode )
             avs_file_full = os.path.join( base, avs_file )
@@ -280,6 +332,7 @@ class BDRip:
             self.encoder_crf = 20
         else:
             self.encoder_crf = crf
+
 
 if __name__ == "__main__":
     rip = BDRip("D")
