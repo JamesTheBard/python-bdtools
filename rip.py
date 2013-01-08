@@ -267,7 +267,7 @@ class BDRip:
             output_file_full = os.path.join( base, output_file )
             self.encodeVideo(avs_file_full, output_file_full)
 
-    def setEncoderQuality(self, quality=False):
+    def setEncoderTuning(self, tuning=False):
         if not quality:
             self.encoder_quality = self.encoder_settings[0]
         elif quality not in self.encoder_settings:
