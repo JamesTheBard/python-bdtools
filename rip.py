@@ -21,64 +21,82 @@ class BDRip:
 
     # Template defaults and filetypes
     avs_template_defs = {
-        "h264": ( "h264.template", "video.dga" ),
-        "vc-1": ( "vc-1.template", "video.grf" ),
-        "mpeg2": ( "mpeg2.template", "video.m2v" ),
+        "h264": [ "h264.template", "video.dga" ],
+        "vc-1": [ "vc-1.template", "video.grf" ],
+        "mpeg2": [ "mpeg2.template", "video.m2v" ],
     }
 
-    def __init__(self, drive_letter):
+    def __init__(self, drive_letter, verbose=False):
+        self.is_verbose = verbose
         self.path_to_dvd = "%s:\BDMV\STREAM" % drive_letter
         self.drive_letter = drive_letter
         self.current_dir = os.getcwd()
         self.encoder_tuning = self.encoder_settings[0]
         for k, v in self.avs_template_defs.items():
-            self.avs_template_defs[k] = os.path.join( self.directory, v)
+            self.avs_template_defs[k][0] = os.path.join( self.directory, v[0])
 
-    # Display output
-    #======================================================================================
-    # verbosePrint          -> prints the string 'message' if self.is_verbose is set to
-    #                          True
-    #--------------------------------------------------------------------------------------
     def verbosePrint(self, message):
+        '''Prints verbose output when self.is_verbose is True.
+
+        Args:
+            message: the message to print to the display
+        '''
         if self.is_verbose:
             print "BDRip: %s" % message
 
-    # Create Avisynth file from a template.
-    #====================================================================================== 
-    # createAvsFromTemplate(
-    #     source_type       -> h264 | mpeg2 | vc-1
-    #     source_file       -> based on source_type or defined when called (custom)
-    #     avisynth_template -> based on source_type or defined when called (custom)
-    #     crop_top          -> amount the video should be cropped from the top of the video
-    #                          (default = 0)
-    #     crop_bottom       -> amount the video should be cropped from the bottom of the
-    #                          video (default = 0).  This will be a negative number.
-    #--------------------------------------------------------------------------------------
     def createAvsFromTemplate(self, **kwargs):
-        if "source_type" not in kwargs.keys():
-            raise SourceNotDefinedError( "The variable 'source_type' is not defined." )
-        if source_type not in self.avs_template_defs:
-            values = ", ".join(self.avs_template_defs.keys())
-            raise SourceNotFoundError( "The variable 'source_type' is not valid.  Currently defined templates are: %s." % values ) 
-        if "source_file" not in kwargs.keys():
-            source_file = self.avs_template_defs[source_type][1]
-        if "avisynth_template" not in kwargs.keys():
-            self.avs_template = self.avs_template_defs[source_type][0]
-        else:
-            self.avs_template = avisynth_template
-        self.verbosePrint( 'Avisynth set to use the "%s" source template.' % source_type
-        self.createAvsFile( avisynth_file, source_file, crop_top, crop_bottom )
+        '''Create an Avisynth file based on the keyword arguments provided.
 
-    # Create Avisynth file
-    #======================================================================================
-    # createAvsFile(
-    #     save_as           -> the name of the avisynth file to save to
-    #     grf_file          -> the source file's name
-    #     crop_top          -> crop the video from the top 'crop_top' number of pixels
-    #     crop_bottom       -> crop the video from the bottom 'crop_bottom' number of
-    #                          pixels
-    #--------------------------------------------------------------------------------------        
-    def createAvsFile(self, save_as, grf_file, crop_top=0, crop_bottom=0):
+        Args:
+            source_type: the source input type for the Avisynth script (i.e. h264)
+            source_file: the source input file for the Avisynth script (i.e. video.h264)
+            avisynth_template: the predefined template for the Avisynth file
+            avisynth_file: the Avisynth script filename to save as
+            crop_top: crops the top of the source (via Avisynth) by that many pixels
+            crop_bottom: crops the bottom of the source (via Avisynth) by that many pixels
+        Raises:
+            SourceNotDefinedError: if source_type is not defined
+            SourceNotFoundError: if source_type is a type that is not defined via template
+        '''
+
+        # Ensure that there is a 'source_type' that exists with a template.
+        if "source_type" not in kwargs.keys():
+            raise SourceNotDefinedError( "The keyword argument 'source_type' is not defined." )
+        if kwargs["source_type"] not in self.avs_template_defs:
+            values = ", ".join(self.avs_template_defs.keys())
+            raise SourceNotFoundError( "The keyword argument 'source_type' is not valid.  Currently defined templates are: %s." % values ) 
+
+        # Set the default values based on what the 'source_type' is.
+        defaults = {
+                "avisynth_file": "video.avs",
+                "crop_top": "0",
+                "crop_bottom": "0",
+        }
+        source_type = kwargs["source_type"]
+        defaults["avisynth_template"] = self.avs_template_defs[source_type][0]
+        defaults["source_file"] = self.avs_template_defs[source_type][1]
+
+        # Apply the kwargs to the constructed set of defaults.
+        defaults.update(kwargs)
+
+        # Set the module Avisynth template and create the Avisynth file
+        self.avs_template = defaults["avisynth_template"]
+        self.verbosePrint( 'Avisynth set to use the "%s" source template.' % source_type )
+        self._createAvsFile(
+                defaults["avisynth_file"],
+                defaults["source_file"], 
+                defaults["crop_top"], 
+                defaults["crop_bottom"], )
+
+    def _createAvsFile(self, save_as, grf_file, crop_top=0, crop_bottom=0):
+        '''Creates an Avisynth file based on the template defined as self.avs_template.
+
+        Args:
+            save_as: the name of the Avisynth file to save to
+            grf_file: the source file's name
+            crop_top: crop the video from the top that many pixels
+            crop_bottom: crop the video from the bottom that many pixels
+        '''
         current_path = os.path.join(os.getcwd(),save_as)
         fullpath_grf = os.path.join(os.getcwd(),grf_file)
         self.verbosePrint( 'Creating Avisynth file: %s' % current_path )
@@ -251,9 +269,9 @@ class BDRip:
 
     def setEncoderQuality(self, quality=False):
         if not quality:
-            self.encoder_quality = self.encoder_settings["tuning"][0]
-        elif quality not in self.encoder_settings["tuning"]:
-            self.encoder_quality = self.encoder_settings["tuning"][0]
+            self.encoder_quality = self.encoder_settings[0]
+        elif quality not in self.encoder_settings:
+            self.encoder_quality = self.encoder_settings[0]
         else:
             self.encoder_quality = quality
 
