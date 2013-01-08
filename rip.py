@@ -4,42 +4,84 @@ import sys
 import operator
 import shutil
 from mako.template import Template
+from error import *
 
 class BDRip:
 
-    template = {}
     version = "0.99.1beta"
-    encoder_settings = { 
-        "tuning": [ 'default', 'film', 'animation', 'grain', 'psnr', 'ssim', 'fast_decode' ],
-    }
+
+    # Encoder defaults
+    # The first entry in the 'tuning' list is considered the default.
+    encoder_settings = 'default', 'film', 'animation', 'grain', 'psnr', 'ssim', 'fast_decode'
     encoder_crf = 20
+
+    # Template directory
     directory = "C:\\Users\\JamesTheBard\\Code\\python-bdtools\\templates"
+    template = {}
+
+    # Template defaults and filetypes
     avs_template_defs = {
-        "h264": "h264.template",
-        "vc-1": "vc-1.template",
-        "mpeg2": "mpeg2.template",
+        "h264": ( "h264.template", "video.dga" ),
+        "vc-1": ( "vc-1.template", "video.grf" ),
+        "mpeg2": ( "mpeg2.template", "video.m2v" ),
     }
 
     def __init__(self, drive_letter):
         self.path_to_dvd = "%s:\BDMV\STREAM" % drive_letter
         self.drive_letter = drive_letter
         self.current_dir = os.getcwd()
-        self.encoder_tuning = self.encoder_settings['tuning'][0]
+        self.encoder_tuning = self.encoder_settings[0]
         for k, v in self.avs_template_defs.items():
             self.avs_template_defs[k] = os.path.join( self.directory, v)
 
-    def createAvsFromTemplate(self, template_type, save_as, grf_file, crop_top=0, crop_bottom=0):
-        if template_type not in self.avs_template_defs:
-            print "BDRip: There is no default Avisynth script configured for that template type."
-            sys.exit(1)
-        self.avs_template = self.avs_template_defs[template_type]
-        print "BDRip: Avisynth set to use the default \"%s\" template located in: %s" % (template_type, self.avs_template)
-        self.createAvsFile( save_as, grf_file, crop_top, crop_bottom )
+    # Display output
+    #======================================================================================
+    # verbosePrint          -> prints the string 'message' if self.is_verbose is set to
+    #                          True
+    #--------------------------------------------------------------------------------------
+    def verbosePrint(self, message):
+        if self.is_verbose:
+            print "BDRip: %s" % message
 
+    # Create Avisynth file from a template.
+    #====================================================================================== 
+    # createAvsFromTemplate(
+    #     source_type       -> h264 | mpeg2 | vc-1
+    #     source_file       -> based on source_type or defined when called (custom)
+    #     avisynth_template -> based on source_type or defined when called (custom)
+    #     crop_top          -> amount the video should be cropped from the top of the video
+    #                          (default = 0)
+    #     crop_bottom       -> amount the video should be cropped from the bottom of the
+    #                          video (default = 0).  This will be a negative number.
+    #--------------------------------------------------------------------------------------
+    def createAvsFromTemplate(self, **kwargs):
+        if "source_type" not in kwargs.keys():
+            raise SourceNotDefinedError( "The variable 'source_type' is not defined." )
+        if source_type not in self.avs_template_defs:
+            values = ", ".join(self.avs_template_defs.keys())
+            raise SourceNotFoundError( "The variable 'source_type' is not valid.  Currently defined templates are: %s." % values ) 
+        if "source_file" not in kwargs.keys():
+            source_file = self.avs_template_defs[source_type][1]
+        if "avisynth_template" not in kwargs.keys():
+            self.avs_template = self.avs_template_defs[source_type][0]
+        else:
+            self.avs_template = avisynth_template
+        self.verbosePrint( 'Avisynth set to use the "%s" source template.' % source_type
+        self.createAvsFile( avisynth_file, source_file, crop_top, crop_bottom )
+
+    # Create Avisynth file
+    #======================================================================================
+    # createAvsFile(
+    #     save_as           -> the name of the avisynth file to save to
+    #     grf_file          -> the source file's name
+    #     crop_top          -> crop the video from the top 'crop_top' number of pixels
+    #     crop_bottom       -> crop the video from the bottom 'crop_bottom' number of
+    #                          pixels
+    #--------------------------------------------------------------------------------------        
     def createAvsFile(self, save_as, grf_file, crop_top=0, crop_bottom=0):
         current_path = os.path.join(os.getcwd(),save_as)
         fullpath_grf = os.path.join(os.getcwd(),grf_file)
-        print "BDRip: Creating Avisynth file: %s" % current_path
+        self.verbosePrint( 'Creating Avisynth file: %s' % current_path )
         avs_template = self.avs_template
         template = Template(filename=avs_template)
         fd = open(save_as, "w")
@@ -49,12 +91,33 @@ class BDRip:
             crop_bottom=crop_bottom,
         ))
         fd.close()
-        
 
+    # Rip television episodes using their M2TS files.  This assumes that each episode has
+    # a consecutive M2TS file.  Each M2TS corresponds to a specific television episode
+    # that also consecutive.  For example, if the series "My TV Show" had four episodes
+    # on the BluRay disc where the tenth episode was contained in "00001.m2ts", the 11th
+    # in "00002.m2ts", the 12th in "00003.m2ts", and the 13th in "00004.m2ts", you could
+    # use the ripByRange command to automatically rip them from the BluRay disc with the
+    # following command:
+    #
+    # ripByRange( 1, 4, 11 )
+    #======================================================================================
+    # ripByRange(
+    #     begin            -> The first M2TS file in the series
+    #     end              -> The last M2TS file in the series
+    #     starting_episode -> The first episode number on the BluRay
     def ripByRange(self, begin, end, starting_episode):
         m2ts = range(begin, end + 1)
         self.ripByArray(m2ts_array=m2ts, starting_episode=starting_episode)
 
+    # Rip television episodes using an array of M2TS files.  It is very similar to the
+    # ripByRange command, but instead of a start and end M2TS number, it accepts an array
+    # of numbers.
+    #======================================================================================
+    # ripByArray(
+    #     m2ts_array       -> An array of integers that represent the M2TS files
+    #     starting_episode -> The first episode number on the BluRay
+    #--------------------------------------------------------------------------------------
     def ripByArray(self, m2ts_array, starting_episode):
         number_of_episodes = len(m2ts_array)
         self.displayHeader(m2ts_array, starting_episode)
@@ -67,7 +130,6 @@ class BDRip:
 
     def sortTemplate(self):
             return sorted(self.template.iteritems(), key=operator.itemgetter(0))
-
 
     def displayHeader(self, m2ts_array, starting_episode):
         number_of_episodes = len(m2ts_array)
@@ -88,26 +150,23 @@ class BDRip:
 
     def ripM2ts(self, m2ts):
         sorted_template = self.sortTemplate()
-        if len(self.template) == 0:
-            print "ERROR: No template defined, exiting."
-            sys.exit(1)
         m2ts_file = "%05i.m2ts" % m2ts
+        filename = os.path.join( self.path_to_dvd, m2ts_file )
+        if not os.path.isfile( filename ):
+            raise FileNotFoundError( 'The M2TS file "%s" does not exist or is unavailable.' % filename )
         command = "eac3to %s " % (os.path.join(self.path_to_dvd, m2ts_file))
         for k, v in sorted_template:
             command += "%s:%s " % (k, v)
-        print "PyRip: '%s'" % command.strip()
+        self.verbosePrint( "Ripping BluRay via M2TS: '%s'." % command.strip() )
         os.system(command)
 
     def ripMpls(self, mpls):
         sorted_template = self.sortTemplate()
-        if len(self.template) == 0:
-            print "ERROR: No template defined, exiting."
-            sys.exit(1)
         mpls = "%s: %i) " % (self.drive_letter, mpls)
         command = "eac3to %s" % mpls
         for k, v in sorted_template:
             command += "%s:%s " % (k, v)
-        print "BDRip: '%s'" % command.strip()
+        self.verbosePrint( "Ripping BluRay via MPLS: '%s'" % command.strip() )
         os.system(command)
 
     def runDgAvcIndex(self, episodes):
@@ -122,12 +181,12 @@ class BDRip:
 
     def dgAvcIndexCommand(self, input_file, output_file):
         command = "DGAVCIndex.exe -i \"%s\" -o \"%s\" -h" % (input_file, output_file)
-        print "DGAVCIndex: %s" % command
+        self.verbosePrint( "DGAVCIndex is running: %s" % command )
         os.system(command)
 
     def dgIndexCommand(self, input_file, output_file):
         command = "DGIndex.exe -i \"%s\" -o \"%s\" -hide -exit" % (input_file, output_file)
-        print "DGIndex: %s" % command
+        self.verbosePrint( "DGIndex is running: %s" % command )
         os.system(command)
 
     def createAvsFileFromEpisodes(self, episodes, grf_file="video.grf"):
@@ -180,7 +239,7 @@ class BDRip:
             additional_command = ""
         command = """""C:\\Program Files (x86)\\MeGui\\tools\\x264\\x264.exe" %s --crf %2.1f --keyint 240 --sar 1:1 --output "%s" "%s\""""
         command = command % (additional_command, self.encoder_crf, output_file, avs_file)
-        print "Encoding video: %s" % command
+        self.verbosePrint( "Encoding video: %s" % command )
         os.system(command)
 
     def encodeEpisodesFromRange(self, start_episode, end_episode, avs_file, output_file):
