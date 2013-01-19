@@ -320,12 +320,12 @@ class BDRip:
             self.encodeVideo(avs_file_full, output_file_full)
 
     def setEncoderTuning(self, tuning=False):
-        if not quality:
+        if not tuning:
             self.encoder_quality = self.encoder_settings[0]
-        elif quality not in self.encoder_settings:
+        elif tuning not in self.encoder_settings:
             self.encoder_quality = self.encoder_settings[0]
         else:
-            self.encoder_quality = quality
+            self.encoder_quality = tuning
 
     def setEncoderCrf(self, crf=False):
         if not crf:
