@@ -320,7 +320,7 @@ class BDRip:
         else:
             additional_command = ""
         command = ('"%s/x264/x264.exe" %s --crf %2.1f --keyint 240 --sar 1:1 '
-                   'output "%s" "%s"')
+                   '--output "%s" "%s"')
         command = command % (
             self.tool_path,
             additional_command,
@@ -330,7 +330,7 @@ class BDRip:
         )
         command = os.path.normpath(command)
         self.verbosePrint("Encoding video: %s" % command)
-        os.system(command)
+        os.system('"' + command + '"')
 
     def encodeEpisodesFromRange(self,
                                 start_episode,
