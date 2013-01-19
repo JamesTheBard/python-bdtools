@@ -322,11 +322,13 @@ class BDRip:
         command = ('"%s/x264/x264.exe" %s --crf %2.1f --keyint 240 --sar 1:1 '
                    'output "%s" "%s"')
         command = command % (
+            self.tool_path,
             additional_command,
             self.encoder_crf,
             output_file,
             avs_file,
         )
+        command = os.path.normpath(command)
         self.verbosePrint("Encoding video: %s" % command)
         os.system(command)
 
